@@ -12,7 +12,7 @@ def filter_data(df):
     filtered = filtered[filtered['season'] >= 2013]
     return filtered
 
-elo_data = load_data('nfl_elo.csv')
+elo_data = load_data('datacleaning/nfl_elo.csv')
 elo_data = filter_data(elo_data)
 
 list_of_seasons = sorted(list(set(elo_data['season'])))
@@ -74,8 +74,18 @@ team_names = {'Eagles':'PHI',
                 'Jaguars':'JAX',}
 
 def add_data_by_year(elo_dict, year):
-    cap_data = load_data('PosSpending'+str(year)+'.csv')
+    cap_data = load_data('datacleaning/PosSpending'+str(year)+'.csv')
     # print(cap_data.head())
+
+    for row in cap_data:
+        temp = np.array(cap_data[row])
+        if row != "Team":
+            for i, x in enumerate(temp):
+                    temp2 = x.replace(",","")
+                    temp2 = temp2.replace("$","")
+                    temp[i] = int(temp2)
+            cap_data[row] = pd.Series(temp, dtype='int64')
+
     teams = np.array(cap_data['Team'])
     teamnick = []
     elo1 = []
@@ -94,6 +104,7 @@ def add_data_by_year(elo_dict, year):
                     'EndSeasonELO':elo1, 'QBAdjEndSeasonElo':elo2})
 
     newdf = mergedf.merge(cap_data, how='inner',on='Team')
+
     return newdf
 
 def merge_dfs(elo_dict_by_team):
@@ -110,13 +121,44 @@ def merge_dfs(elo_dict_by_team):
     
     return complete_df
 
+
 # next steps:
+    # convert to cap %
     # figure out what analysis I am going to do, what questions I can answer
         # clustering
         # what will I do with powerbi?
 
-elo_dict_by_team = get_elo_datapoints(elo_data)
-elo_cap_total_df = merge_dfs(elo_dict_by_team)
-elo_cap_total_df.to_csv('elo_and_cap_data.csv')
+# elo_dict_by_team = get_elo_datapoints(elo_data)
+# elo_cap_total_df = merge_dfs(elo_dict_by_team)
+# elo_cap_total_df.to_csv('datacleaning/elo_and_cap_data.csv')
 
-# print(elo_data.head())
+
+tempdf = pd.read_csv('datacleaning/elo_and_cap_data.csv')
+# print(tempdf.head())
+
+base_cap = pd.read_csv('datacleaning/base_cap.csv')
+base_cap_dict = {}
+for i in range(len(base_cap['Year'])):
+    base_cap_dict[base_cap['Year'][i]] = base_cap['Cap'][i]
+
+def divide_by_cap(row):
+    year = row['Season']
+    cap = base_cap_dict.get(year, 1)  # Default to 1 if year not in dictionary (to avoid division by zero)
+    row['QB'] /= cap
+    row['RB'] /= cap
+    row['WR'] /= cap
+    row['TE'] /= cap
+    row['OL'] /= cap
+    row['Offense'] /= cap
+    row['IDL'] /= cap
+    row['EDGE'] /= cap
+    row['LB'] /= cap
+    row['S'] /= cap
+    row['CB'] /= cap
+    row['Defense'] /= cap
+    return row
+
+df = tempdf.apply(divide_by_cap, axis=1)
+print(df.info())
+print(df.head())
+# df.to_csv('datacleaning/elo_cap_percentages.csv')
